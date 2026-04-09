@@ -16,7 +16,7 @@ pub enum IntentError {
     InsufficientBalance,
     #[msg("Execution already in progress")]
     ExecutionInProgress,
-    #[msg("Math overflow")]
+    #[msg("Numeric overflow in intent execution")]
     MathOverflow,
     #[msg("Invalid block index")]
     InvalidBlockIndex,
