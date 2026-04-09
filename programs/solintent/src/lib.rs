@@ -32,6 +32,14 @@ pub mod solintent {
         instructions::execute_intent::handler(ctx, exec_id)
     }
 
+    pub fn execute_swap(ctx: Context<ExecuteSwap>, tx_sig: [u8; 64]) -> Result<()> {
+        instructions::execute_swap::handler(ctx, tx_sig)
+    }
+
+    pub fn execute_stake(ctx: Context<ExecuteStake>, tx_sig: [u8; 64]) -> Result<()> {
+        instructions::execute_stake::handler(ctx, tx_sig)
+    }
+
     pub fn delete_agent(ctx: Context<DeleteAgent>) -> Result<()> {
         instructions::delete_agent::handler(ctx)
     }
