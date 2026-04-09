@@ -1,5 +1,6 @@
 use anchor_lang::prelude::*;
 use crate::state::IntentConfig;
+use crate::errors::IntentError;
 use crate::constants::CONFIG_SEED;
 
 #[derive(Accounts)]
@@ -18,6 +19,8 @@ pub struct InitializeConfig<'info> {
 }
 
 pub fn handler(ctx: Context<InitializeConfig>, fee_bps: u16) -> Result<()> {
+    require!(fee_bps <= 10_000, IntentError::InvalidFee);
+
     let config = &mut ctx.accounts.config;
     config.authority = ctx.accounts.authority.key();
     config.treasury = ctx.accounts.authority.key();

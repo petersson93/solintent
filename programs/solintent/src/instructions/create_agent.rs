@@ -28,6 +28,7 @@ pub fn handler(
     trigger: Option<TriggerCondition>,
 ) -> Result<()> {
     require!(name.len() <= MAX_AGENT_NAME_LEN, IntentError::NameTooLong);
+    require!(!blocks.is_empty(), IntentError::InvalidBlockIndex);
     require!(blocks.len() <= MAX_BLOCKS_PER_AGENT, IntentError::TooManyBlocks);
 
     let clock = Clock::get()?;

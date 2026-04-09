@@ -20,4 +20,8 @@ pub enum IntentError {
     MathOverflow,
     #[msg("Invalid block index")]
     InvalidBlockIndex,
+    #[msg("Fee exceeds maximum (10000 bps)")]
+    InvalidFee,
+    #[msg("Execution already completed or failed")]
+    ExecutionNotActive,
 }

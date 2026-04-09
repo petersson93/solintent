@@ -12,6 +12,8 @@ pub struct ExecuteStake<'info> {
     )]
     pub config: Account<'info, IntentConfig>,
     #[account(
+        seeds = [AGENT_SEED, agent.user.as_ref(), &agent.agent_id.to_le_bytes()],
+        bump = agent.bump,
         constraint = agent.is_active @ IntentError::AgentNotActive,
     )]
     pub agent: Account<'info, UserAgent>,
@@ -33,7 +35,7 @@ pub fn handler(ctx: Context<ExecuteStake>, tx_sig: [u8; 64]) -> Result<()> {
 
     require!(
         execution.status == ExecutionStatus::Pending || execution.status == ExecutionStatus::Executing,
-        IntentError::ExecutionInProgress
+        IntentError::ExecutionNotActive
     );
 
     let block_idx = execution.blocks_completed as usize;

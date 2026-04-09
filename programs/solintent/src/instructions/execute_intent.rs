@@ -8,6 +8,14 @@ use crate::constants::*;
 pub struct ExecuteIntent<'info> {
     #[account(
         mut,
+        seeds = [CONFIG_SEED],
+        bump = config.bump,
+    )]
+    pub config: Account<'info, IntentConfig>,
+    #[account(
+        mut,
+        seeds = [AGENT_SEED, user.key().as_ref(), &agent.agent_id.to_le_bytes()],
+        bump = agent.bump,
         constraint = agent.is_active @ IntentError::AgentNotActive,
         constraint = agent.user == user.key() @ IntentError::Unauthorized,
     )]
@@ -40,6 +48,10 @@ pub fn handler(ctx: Context<ExecuteIntent>, exec_id: u64) -> Result<()> {
     execution.bump = ctx.bumps.execution;
 
     ctx.accounts.agent.total_executions = ctx.accounts.agent.total_executions
+        .checked_add(1)
+        .ok_or(IntentError::MathOverflow)?;
+
+    ctx.accounts.config.total_intents_executed = ctx.accounts.config.total_intents_executed
         .checked_add(1)
         .ok_or(IntentError::MathOverflow)?;
 
