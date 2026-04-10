@@ -4,6 +4,7 @@ import json
 import struct
 import os
 import time
+import random
 from pathlib import Path
 
 from solders.keypair import Keypair
@@ -147,7 +148,7 @@ async def build_create_agent_tx(
     program_id = Pubkey.from_string(PROGRAM_ID)
     user_pk = Pubkey.from_string(wallet_pubkey)
 
-    agent_id = int(time.time())
+    agent_id = int(time.time() * 1000) + random.randint(0, 999)
     agent_pda, _ = derive_agent_pda(user_pk, agent_id, program_id)
 
     ix_data = encode_create_agent_data(agent_id, agent_name, "Chat", blocks)
@@ -195,7 +196,7 @@ async def build_execute_intent_tx(
     agent_pda, _ = derive_agent_pda(user_pk, agent_id, program_id)
     config_pda, _ = derive_config_pda(program_id)
 
-    exec_id = int(time.time())
+    exec_id = int(time.time() * 1000) + random.randint(0, 999)
     execution_pda, _ = derive_execution_pda(agent_pda, exec_id, program_id)
 
     ix_data = encode_execute_intent_data(exec_id)
@@ -245,8 +246,9 @@ async def crank_execute_blocks(agent_id: int, user_pubkey: str, exec_id: int) ->
     config_pda, _ = derive_config_pda(program_id)
     execution_pda, _ = derive_execution_pda(agent_pda, exec_id, program_id)
 
-    # TODO: read agent account to get blocks, iterate and call execute_swap/execute_stake
-    # For now, send a single execute_swap with a dummy tx_sig
+    # NOTE: placeholder — real implementation should read agent blocks from on-chain,
+    # perform the actual swap via Jupiter, then pass the real tx signature.
+    # Currently sends execute_swap with zeroed sig as proof-of-concept.
     dummy_sig = bytes(64)
 
     ix_data = bytearray(EXECUTE_SWAP_DISC)

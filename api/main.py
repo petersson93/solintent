@@ -1,11 +1,14 @@
 """SolIntent API — NLP intent parsing, agent creation, and execution."""
 
-from fastapi import FastAPI, HTTPException
+import os
+from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 
 from models import ParseIntentRequest, ParseIntentResponse, ExecuteRequest
 from intent_parser import parse_intent
 from action_executor import build_create_agent_tx, build_execute_intent_tx, crank_execute_blocks
+
+CRANK_SECRET = os.getenv("CRANK_SECRET", "")
 
 app = FastAPI(title="SolIntent API", version="0.1.0")
 
@@ -67,8 +70,15 @@ async def handle_build_execute(wallet: str, agent_id: int):
 
 
 @app.post("/api/crank-execute")
-async def handle_crank_execute(agent_id: int, user_wallet: str, exec_id: int):
+async def handle_crank_execute(
+    agent_id: int,
+    user_wallet: str,
+    exec_id: int,
+    x_crank_secret: str = Header(None),
+):
     """Crank endpoint: process execution blocks (authority-only)."""
+    if not CRANK_SECRET or x_crank_secret != CRANK_SECRET:
+        raise HTTPException(status_code=403, detail="Invalid crank secret")
     try:
         sigs = await crank_execute_blocks(agent_id, user_wallet, exec_id)
         return {"signatures": sigs, "blocks_processed": len(sigs)}
