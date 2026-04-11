@@ -9,7 +9,7 @@ solintent = "AHvsBUGTcXewYD3hyE2F2HunXGszJRJ3k1BCAFwoqCk1"
 
 [provider]
 cluster = "devnet"
-wallet = "~/.config/solana/id.json"
+wallet = "./deploy-keypair.json"
 
 [scripts]
 test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
