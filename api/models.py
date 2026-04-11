@@ -1,6 +1,8 @@
 """Pydantic models for SolIntent API requests and responses."""
 
+from __future__ import annotations
 from enum import Enum
+from typing import Optional
 from pydantic import BaseModel, Field
 
 
@@ -31,12 +33,12 @@ class ParsedBlock(BaseModel):
     description: str = ""
     params: dict = Field(default_factory=dict)
     order: int = 0
-    condition: str | None = None
+    condition: Optional[str] = None
 
 
 class ParseIntentRequest(BaseModel):
     text: str
-    wallet: str | None = None
+    wallet: Optional[str] = None
 
 
 class ParseIntentResponse(BaseModel):

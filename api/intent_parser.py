@@ -47,7 +47,7 @@ For alerts, params should include: token, price, direction (above/below)
 Return ONLY valid JSON. No explanation."""
 
 
-async def parse_intent(user_text: str, wallet_address: str | None = None) -> dict:
+async def parse_intent(user_text: str, wallet_address=None) -> dict:
     """Parse natural language into structured action blocks via Claude API."""
     if not ANTHROPIC_API_KEY:
         return _fallback_parse(user_text)
@@ -60,13 +60,18 @@ async def parse_intent(user_text: str, wallet_address: str | None = None) -> dic
 
     try:
         response = await client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model=os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001"),
             max_tokens=500,
             system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_msg}],
         )
 
         raw_text = response.content[0].text.strip()
+        # Strip markdown code block wrappers if present
+        if raw_text.startswith("```"):
+            raw_text = raw_text.split("\n", 1)[1] if "\n" in raw_text else raw_text[3:]
+        if raw_text.endswith("```"):
+            raw_text = raw_text[:-3].strip()
         parsed = json.loads(raw_text)
 
         blocks = []

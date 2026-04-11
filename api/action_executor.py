@@ -25,11 +25,11 @@ PROGRAM_ID = os.getenv("PROGRAM_ID", "AHvsBUGTcXewYD3hyE2F2HunXGszJRJ3k1BCAFwoqC
 RPC_URL = os.getenv("ANCHOR_PROVIDER_URL", "https://api.devnet.solana.com")
 WALLET_PATH = os.getenv("ANCHOR_WALLET", "~/.config/solana/id.json")
 
-# Anchor instruction discriminators (from IDL)
-CREATE_AGENT_DISC = bytes([167, 77, 29, 201, 110, 217, 226, 111])
-EXECUTE_INTENT_DISC = bytes([186, 160, 187, 133, 101, 234, 150, 29])
-EXECUTE_SWAP_DISC = bytes([108, 56, 233, 10, 155, 32, 42, 224])
-EXECUTE_STAKE_DISC = bytes([92, 98, 173, 87, 176, 15, 192, 123])
+# Anchor instruction discriminators (from IDL — must match deployed program)
+CREATE_AGENT_DISC = bytes([143, 66, 198, 95, 110, 85, 83, 249])
+EXECUTE_INTENT_DISC = bytes([53, 130, 47, 154, 227, 220, 122, 212])
+EXECUTE_SWAP_DISC = bytes([56, 182, 124, 215, 155, 140, 157, 102])
+EXECUTE_STAKE_DISC = bytes([123, 140, 82, 174, 137, 211, 238, 49])
 
 # PDA seeds
 CONFIG_SEED = b"intent_config"
@@ -144,7 +144,9 @@ async def build_create_agent_tx(
     agent_name: str,
     blocks: list[ParsedBlock],
 ) -> dict:
-    """Build a create_agent transaction. Returns serialized tx for frontend signing."""
+    """Build create_agent instruction data. Frontend builds + signs the tx."""
+    import base64
+
     program_id = Pubkey.from_string(PROGRAM_ID)
     user_pk = Pubkey.from_string(wallet_pubkey)
 
@@ -153,36 +155,17 @@ async def build_create_agent_tx(
 
     ix_data = encode_create_agent_data(agent_id, agent_name, "Chat", blocks)
 
-    ix = Instruction(
-        program_id=program_id,
-        accounts=[
-            AccountMeta(agent_pda, is_signer=False, is_writable=True),
-            AccountMeta(user_pk, is_signer=True, is_writable=True),
-            AccountMeta(SYSTEM_PROGRAM_ID, is_signer=False, is_writable=False),
+    return {
+        "programId": PROGRAM_ID,
+        "instructionData": base64.b64encode(ix_data).decode("ascii"),
+        "accounts": [
+            {"pubkey": str(agent_pda), "isSigner": False, "isWritable": True},
+            {"pubkey": wallet_pubkey, "isSigner": True, "isWritable": True},
+            {"pubkey": str(SYSTEM_PROGRAM_ID), "isSigner": False, "isWritable": False},
         ],
-        data=ix_data,
-    )
-
-    client = AsyncClient(RPC_URL)
-    try:
-        recent = await client.get_latest_blockhash(commitment=Confirmed)
-        blockhash = recent.value.blockhash
-
-        msg = Message.new_with_blockhash([ix], user_pk, blockhash)
-        tx = Transaction.new_unsigned(msg)
-
-        import base64
-        tx_bytes = bytes(tx)
-        tx_base64 = base64.b64encode(tx_bytes).decode("ascii")
-
-        return {
-            "transaction": tx_base64,
-            "agent_id": agent_id,
-            "agent_pda": str(agent_pda),
-            "blockhash": str(blockhash),
-        }
-    finally:
-        await client.close()
+        "agent_id": agent_id,
+        "agent_pda": str(agent_pda),
+    }
 
 
 async def build_execute_intent_tx(

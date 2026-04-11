@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Routes, Route, Link, useLocation } from 'react-router-dom';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
-import { PublicKey, Transaction } from '@solana/web3.js';
+import { PublicKey, Transaction, TransactionInstruction } from '@solana/web3.js';
 import ReactFlow, { Background, Controls, type Node, type Edge } from 'reactflow';
 import 'reactflow/dist/style.css';
 
@@ -76,7 +76,7 @@ interface ChatMsg {
 /* ─── ChatPage ─── */
 
 function ChatPage() {
-  const { publicKey, signTransaction } = useWallet();
+  const { publicKey, signTransaction, sendTransaction } = useWallet();
   const { connection } = useConnection();
   const [messages, setMessages] = useState<ChatMsg[]>([
     {
@@ -162,15 +162,31 @@ function ChatPage() {
         }
 
         const data = await resp.json();
-        const txBase64: string = data.transaction;
+
+        // Build transaction on frontend with fresh blockhash
+        const ix = new TransactionInstruction({
+          programId: new PublicKey(data.programId),
+          keys: data.accounts.map((a: any) => ({
+            pubkey: new PublicKey(a.pubkey),
+            isSigner: a.isSigner,
+            isWritable: a.isWritable,
+          })),
+          data: Buffer.from(data.instructionData, 'base64'),
+        });
+
+        const tx = new Transaction();
+        tx.add(ix);
+        tx.feePayer = publicKey;
+        const { blockhash } = await connection.getLatestBlockhash('confirmed');
+        tx.recentBlockhash = blockhash;
 
         setState('signing');
-        const txBuf = Buffer.from(txBase64, 'base64');
-        const tx = Transaction.from(txBuf);
-        const signed = await signTransaction(tx);
+        const sig = await sendTransaction(tx, connection, {
+          skipPreflight: true,
+          preflightCommitment: 'confirmed',
+        });
 
         setState('confirming');
-        const sig = await connection.sendRawTransaction(signed.serialize());
         await connection.confirmTransaction(sig, 'confirmed');
 
         setSig(sig);
