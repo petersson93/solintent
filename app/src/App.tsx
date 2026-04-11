@@ -1,10 +1,14 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Routes, Route, Link, useLocation } from 'react-router-dom';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
-import { PublicKey } from '@solana/web3.js';
+import { PublicKey, Transaction } from '@solana/web3.js';
+import ReactFlow, { Background, Controls, type Node, type Edge } from 'reactflow';
+import 'reactflow/dist/style.css';
 
 const PROGRAM_ID = 'AHvsBUGTcXewYD3hyE2F2HunXGszJRJ3k1BCAFwoqCk1';
+
+type ExecState = 'idle' | 'building' | 'signing' | 'confirming' | 'done' | 'error';
 
 export default function App() {
   const loc = useLocation();
@@ -72,7 +76,8 @@ interface ChatMsg {
 /* ─── ChatPage ─── */
 
 function ChatPage() {
-  const { publicKey } = useWallet();
+  const { publicKey, signTransaction } = useWallet();
+  const { connection } = useConnection();
   const [messages, setMessages] = useState<ChatMsg[]>([
     {
       role: 'assistant',
@@ -81,6 +86,9 @@ function ChatPage() {
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [executing, setExecuting] = useState<Record<number, ExecState>>({});
+  const [txSigs, setTxSigs] = useState<Record<number, string>>({});
+  const [execErrors, setExecErrors] = useState<Record<number, string>>({});
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -124,6 +132,79 @@ function ChatPage() {
     }
   }, [input, loading, publicKey]);
 
+  const handleExecute = useCallback(
+    async (msgIndex: number, blocks: ParsedBlock[]) => {
+      if (!publicKey || !signTransaction) return;
+
+      const setState = (s: ExecState) =>
+        setExecuting((prev) => ({ ...prev, [msgIndex]: s }));
+      const setErr = (msg: string) =>
+        setExecErrors((prev) => ({ ...prev, [msgIndex]: msg }));
+      const setSig = (sig: string) =>
+        setTxSigs((prev) => ({ ...prev, [msgIndex]: sig }));
+
+      try {
+        setState('building');
+
+        const resp = await fetch('/api/build-agent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            wallet: publicKey.toBase58(),
+            agent_name: 'chat-agent',
+            blocks,
+          }),
+        });
+
+        if (!resp.ok) {
+          const errBody = await resp.text();
+          throw new Error(errBody || `Build failed (${resp.status})`);
+        }
+
+        const data = await resp.json();
+        const txBase64: string = data.transaction;
+
+        setState('signing');
+        const txBuf = Buffer.from(txBase64, 'base64');
+        const tx = Transaction.from(txBuf);
+        const signed = await signTransaction(tx);
+
+        setState('confirming');
+        const sig = await connection.sendRawTransaction(signed.serialize());
+        await connection.confirmTransaction(sig, 'confirmed');
+
+        setSig(sig);
+        setState('done');
+      } catch (err: any) {
+        const errMsg =
+          err?.message || err?.toString?.() || 'Unknown error during execution';
+        setErr(errMsg);
+        setState('error');
+      }
+    },
+    [publicKey, signTransaction, connection],
+  );
+
+  const execButtonLabel = (state: ExecState | undefined): string => {
+    switch (state) {
+      case 'building':
+        return 'Building tx...';
+      case 'signing':
+        return 'Sign in wallet...';
+      case 'confirming':
+        return 'Confirming...';
+      case 'done':
+        return 'View on Explorer \u2197';
+      case 'error':
+        return 'Failed \u2014 retry?';
+      default:
+        return 'Sign & Execute';
+    }
+  };
+
+  const isExecBusy = (state: ExecState | undefined): boolean =>
+    state === 'building' || state === 'signing' || state === 'confirming';
+
   return (
     <div className="flex flex-col h-[calc(100vh-120px)]">
       {/* messages */}
@@ -164,9 +245,35 @@ function ChatPage() {
                     </p>
                   )}
                   {publicKey ? (
-                    <button className="mt-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-sm font-semibold px-4 py-2 rounded-xl hover:opacity-90 transition-opacity">
-                      Sign & Execute
-                    </button>
+                    <>
+                      {executing[i] === 'done' && txSigs[i] ? (
+                        <a
+                          href={`https://explorer.solana.com/tx/${txSigs[i]}?cluster=devnet`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-2 inline-block bg-green-500/80 text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-green-500 transition-colors"
+                        >
+                          View on Explorer &#8599;
+                        </a>
+                      ) : (
+                        <button
+                          disabled={isExecBusy(executing[i])}
+                          onClick={() => handleExecute(i, m.blocks!)}
+                          className={`mt-2 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-opacity ${
+                            executing[i] === 'error'
+                              ? 'bg-gradient-to-r from-red-500 to-orange-500 hover:opacity-90'
+                              : 'bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90'
+                          } disabled:opacity-50 disabled:cursor-wait`}
+                        >
+                          {execButtonLabel(executing[i])}
+                        </button>
+                      )}
+                      {executing[i] === 'error' && execErrors[i] && (
+                        <p className="text-xs text-red-300/80 mt-1 break-all">
+                          {execErrors[i]}
+                        </p>
+                      )}
+                    </>
                   ) : (
                     <p className="text-xs text-yellow-300/70 mt-1">Connect wallet to execute</p>
                   )}
@@ -214,21 +321,136 @@ function ChatPage() {
 
 /* ─── BuilderPage ─── */
 
+const flowNodeStyle = {
+  background: 'rgba(139, 92, 246, 0.15)',
+  border: '1px solid rgba(139, 92, 246, 0.4)',
+  borderRadius: '12px',
+  padding: '14px 18px',
+  color: '#e2e0ff',
+  fontSize: '13px',
+  fontFamily: "'Space Mono', monospace",
+  backdropFilter: 'blur(8px)',
+  minWidth: 180,
+};
+
+const demoNodes: Node[] = [
+  {
+    id: 'swap',
+    position: { x: 60, y: 180 },
+    data: {
+      label: (
+        <div>
+          <div style={{ fontSize: 10, color: '#c084fc', marginBottom: 4 }}>SWAP</div>
+          <div>SOL &rarr; USDC</div>
+          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>via Jupiter</div>
+        </div>
+      ),
+    },
+    style: flowNodeStyle,
+  },
+  {
+    id: 'stake',
+    position: { x: 340, y: 180 },
+    data: {
+      label: (
+        <div>
+          <div style={{ fontSize: 10, color: '#f0abfc', marginBottom: 4 }}>STAKE</div>
+          <div>USDC on Kamino</div>
+          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>auto-compound</div>
+        </div>
+      ),
+    },
+    style: flowNodeStyle,
+  },
+  {
+    id: 'alert',
+    position: { x: 620, y: 180 },
+    data: {
+      label: (
+        <div>
+          <div style={{ fontSize: 10, color: '#fb923c', marginBottom: 4 }}>ALERT</div>
+          <div>APY &lt; 5%</div>
+          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', marginTop: 4 }}>notify &amp; unwind</div>
+        </div>
+      ),
+    },
+    style: flowNodeStyle,
+  },
+];
+
+const demoEdges: Edge[] = [
+  {
+    id: 'swap-stake',
+    source: 'swap',
+    target: 'stake',
+    animated: true,
+    style: { stroke: '#a78bfa', strokeWidth: 2 },
+  },
+  {
+    id: 'stake-alert',
+    source: 'stake',
+    target: 'alert',
+    animated: true,
+    style: { stroke: '#c084fc', strokeWidth: 2 },
+  },
+];
+
 function BuilderPage() {
+  const [nodes, setNodes] = useState<Node[]>(demoNodes);
+  const [edges] = useState<Edge[]>(demoEdges);
+
+  const onNodesChange = useCallback(
+    (changes: any) => {
+      setNodes((nds) => {
+        const updated = [...nds];
+        for (const change of changes) {
+          if (change.type === 'position' && change.position) {
+            const idx = updated.findIndex((n) => n.id === change.id);
+            if (idx !== -1) {
+              updated[idx] = { ...updated[idx], position: change.position };
+            }
+          }
+        }
+        return updated;
+      });
+    },
+    [],
+  );
+
   return (
-    <div className="bg-white/5 backdrop-blur-md rounded-2xl p-8 border border-white/10 h-[600px] flex flex-col items-center justify-center gap-4">
-      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500/30 to-pink-500/30 flex items-center justify-center border border-white/10">
-        <svg className="w-8 h-8 text-white/60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zm10 0a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
-        </svg>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-white text-xl font-semibold font-mono">
+          Visual Agent Builder
+        </h2>
+        <span className="text-xs font-mono text-purple-400/60 bg-purple-500/10 px-3 py-1 rounded-full">
+          demo mode
+        </span>
       </div>
-      <h2 className="text-white text-xl font-semibold font-mono">Visual Agent Builder</h2>
-      <p className="text-white/40 text-sm max-w-md text-center">
-        Drag-and-drop blocks to build multi-step DeFi agents. Connect swap, stake, limit order, and alert blocks.
+      <div
+        className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden"
+        style={{ height: 520 }}
+      >
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          fitView
+          proOptions={{ hideAttribution: true }}
+        >
+          <Background color="rgba(139, 92, 246, 0.08)" gap={20} />
+          <Controls
+            style={{
+              background: 'rgba(30, 20, 60, 0.8)',
+              border: '1px solid rgba(139, 92, 246, 0.3)',
+              borderRadius: 8,
+            }}
+          />
+        </ReactFlow>
+      </div>
+      <p className="text-white/30 text-xs text-center font-mono">
+        Drag nodes to rearrange. Connect swap, stake, and alert blocks to build multi-step DeFi agents.
       </p>
-      <span className="text-xs font-mono text-purple-400/60 bg-purple-500/10 px-3 py-1 rounded-full">
-        coming soon
-      </span>
     </div>
   );
 }
