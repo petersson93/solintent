@@ -3,6 +3,7 @@
 import os
 from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
+from solders.pubkey import Pubkey
 
 from models import ParseIntentRequest, ParseIntentResponse, ExecuteRequest
 from intent_parser import parse_intent
@@ -46,6 +47,10 @@ async def handle_build_agent(req: ExecuteRequest):
     """Build a create_agent transaction for the user to sign."""
     if not req.wallet:
         raise HTTPException(status_code=400, detail="Wallet address required")
+    try:
+        Pubkey.from_string(req.wallet)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid Solana wallet address")
     if not req.blocks:
         raise HTTPException(status_code=400, detail="At least one action block required")
 

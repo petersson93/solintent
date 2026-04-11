@@ -144,7 +144,7 @@ def _fallback_parse(user_text: str) -> dict:
     return {
         "blocks": blocks,
         "summary": user_text,
-        "confidence": 0.4,
+        "confidence": 0.1,
     }
 
 

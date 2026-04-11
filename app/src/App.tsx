@@ -497,7 +497,6 @@ function AgentsPage() {
     connection
       .getProgramAccounts(programId, {
         filters: [
-          { dataSize: 300 },
           { memcmp: { offset: 8, bytes: publicKey.toBase58() } },
         ],
       })
