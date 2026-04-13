@@ -4,6 +4,8 @@ import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { PublicKey, Transaction, TransactionInstruction } from '@solana/web3.js';
 import ReactFlow, { Background, Controls, type Node, type Edge } from 'reactflow';
+import { useAtom } from 'jotai';
+import { messagesAtom, inputAtom } from './state/chatAtoms';
 import 'reactflow/dist/style.css';
 
 const PROGRAM_ID = 'AHvsBUGTcXewYD3hyE2F2HunXGszJRJ3k1BCAFwoqCk1';
@@ -86,6 +88,10 @@ function ChatPage() {
   ]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // jotai atoms — cross-component state sync for chat history
+  const [, syncMessages] = useAtom(messagesAtom);
+  const [, syncInput] = useAtom(inputAtom);
   const [executing, setExecuting] = useState<Record<number, ExecState>>({});
   const [txSigs, setTxSigs] = useState<Record<number, string>>({});
   const [execErrors, setExecErrors] = useState<Record<number, string>>({});
@@ -99,8 +105,14 @@ function ChatPage() {
     const txt = input.trim();
     if (!txt || loading) return;
 
-    setMessages((prev) => [...prev, { role: 'user', text: txt }]);
+    const userMsg: ChatMsg = { role: 'user', text: txt };
+    setMessages((prev) => {
+      const next = [...prev, userMsg];
+      syncMessages(next.map((m) => ({ role: m.role, content: m.text, blocks: m.blocks, ts: Date.now() })));
+      return next;
+    });
     setInput('');
+    syncInput('');
     setLoading(true);
 
     try {
@@ -113,24 +125,32 @@ function ChatPage() {
       if (!resp.ok) throw new Error('Backend returned ' + resp.status);
       const data = await resp.json();
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          text: data.summary || 'Here is what I understood:',
-          blocks: data.blocks,
-          confidence: data.confidence,
-        },
-      ]);
+      setMessages((prev) => {
+        const next = [
+          ...prev,
+          {
+            role: 'assistant' as const,
+            text: data.summary || 'Here is what I understood:',
+            blocks: data.blocks,
+            confidence: data.confidence,
+          },
+        ];
+        syncMessages(next.map((m) => ({ role: m.role, content: m.text, blocks: m.blocks, ts: Date.now() })));
+        return next;
+      });
     } catch {
-      setMessages((prev) => [
-        ...prev,
-        { role: 'assistant', text: 'Could not reach the backend. Make sure the API is running on port 8000.' },
-      ]);
+      setMessages((prev) => {
+        const next = [
+          ...prev,
+          { role: 'assistant' as const, text: 'Could not reach the backend. Make sure the API is running on port 8000.' },
+        ];
+        syncMessages(next.map((m) => ({ role: m.role, content: m.text, blocks: m.blocks, ts: Date.now() })));
+        return next;
+      });
     } finally {
       setLoading(false);
     }
-  }, [input, loading, publicKey]);
+  }, [input, loading, publicKey, syncMessages, syncInput]);
 
   const handleExecute = useCallback(
     async (msgIndex: number, blocks: ParsedBlock[]) => {
@@ -317,7 +337,7 @@ function ChatPage() {
       <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-2 flex gap-2">
         <input
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={(e) => { setInput(e.target.value); syncInput(e.target.value); }}
           onKeyDown={(e) => e.key === 'Enter' && send()}
           placeholder={publicKey ? 'Describe your DeFi action...' : 'Connect wallet first, then type here...'}
           className="flex-1 bg-transparent px-4 py-3 text-white placeholder-white/30 outline-none text-sm"

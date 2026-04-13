@@ -1,3 +1,5 @@
+#![allow(unexpected_cfgs)]
+
 use anchor_lang::prelude::*;
 
 mod constants;
@@ -28,9 +30,7 @@ pub mod solintent {
         instructions::create_agent::handler(ctx, agent_id, name, agent_type, blocks, trigger)
     }
 
-    pub fn execute_intent(ctx: Context<ExecuteIntent>, exec_id: u64) -> Result<()> {
-        instructions::execute_intent::handler(ctx, exec_id)
-    }
+    pub fn execute_intent(ctx: Context<ExecuteIntent>, exec_id: u64) -> Result<()> { instructions::execute_intent::handler(ctx, exec_id) }
 
     pub fn execute_swap(ctx: Context<ExecuteSwap>, tx_sig: [u8; 64]) -> Result<()> {
         instructions::execute_swap::handler(ctx, tx_sig)
@@ -40,7 +40,5 @@ pub mod solintent {
         instructions::execute_stake::handler(ctx, tx_sig)
     }
 
-    pub fn delete_agent(ctx: Context<DeleteAgent>) -> Result<()> {
-        instructions::delete_agent::handler(ctx)
-    }
+    pub fn delete_agent(ctx: Context<DeleteAgent>) -> Result<()> { instructions::delete_agent::handler(ctx) }
 }

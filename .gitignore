@@ -14,8 +14,3 @@ __pycache__/
 dist-types/
 *.d.ts
 !src/**/*.d.ts
-.vercel
-WORKLOG.md
-REVIEWS.md
-REFERENCES.md
-deploy-keypair.json
