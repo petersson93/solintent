@@ -46,6 +46,7 @@ class ParseIntentResponse(BaseModel):
     blocks: list[ParsedBlock]
     summary: str
     confidence: float = 0.0
+    reply: Optional[str] = None
 
 
 class ExecuteRequest(BaseModel):
