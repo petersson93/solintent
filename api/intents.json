@@ -1,0 +1,26 @@
+{
+  "version": "0.1",
+  "description": "Reference library of natural-language inputs the NLP layer should resolve to canonical actions. Used both at runtime (few-shot) and for offline regression.",
+  "intents": [
+    { "input": "swap 1 SOL to USDC", "action": "swap", "params": { "in": "SOL", "out": "USDC", "amount": 1 } },
+    { "input": "trade 0.5 sol for usdc", "action": "swap", "params": { "in": "SOL", "out": "USDC", "amount": 0.5 } },
+    { "input": "convert 200 USDC to JUP", "action": "swap", "params": { "in": "USDC", "out": "JUP", "amount": 200 } },
+    { "input": "stake 5 SOL on Marinade", "action": "stake", "params": { "amount": 5, "validator": "marinade" } },
+    { "input": "stake all SOL on jito", "action": "stake", "params": { "amount": "all", "validator": "jito" } },
+    { "input": "unstake 2 mSOL", "action": "unstake", "params": { "amount": 2, "token": "mSOL" } },
+    { "input": "lend 100 USDC on Kamino", "action": "lend", "params": { "amount": 100, "token": "USDC", "venue": "kamino" } },
+    { "input": "borrow 50 USDC against my SOL", "action": "borrow", "params": { "amount": 50, "token": "USDC", "collateral": "SOL" } },
+    { "input": "set alert if SOL drops below 80", "action": "alert", "params": { "asset": "SOL", "op": "<", "value": 80 } },
+    { "input": "notify me when JUP hits 2.5", "action": "alert", "params": { "asset": "JUP", "op": "==", "value": 2.5 } },
+    { "input": "DCA 50 USDC into SOL every monday", "action": "schedule_swap", "params": { "amount": 50, "in": "USDC", "out": "SOL", "cadence": "weekly:mon" } },
+    { "input": "DCA 10$ into BONK daily for 30 days", "action": "schedule_swap", "params": { "amount": 10, "in": "USDC", "out": "BONK", "cadence": "daily", "limit": 30 } },
+    { "input": "claim my staking rewards", "action": "claim_rewards", "params": {} },
+    { "input": "withdraw all liquidity from Orca SOL/USDC", "action": "withdraw_lp", "params": { "venue": "orca", "pair": "SOL/USDC", "amount": "all" } },
+    { "input": "show my open positions", "action": "view", "params": { "view": "positions" } },
+    { "input": "what's my SOL balance", "action": "view", "params": { "view": "balance", "asset": "SOL" } },
+    { "input": "send 0.1 SOL to friend.sol", "action": "transfer", "params": { "amount": 0.1, "asset": "SOL", "to": "friend.sol" } },
+    { "input": "rebalance to 60 SOL 40 USDC", "action": "rebalance", "params": { "weights": { "SOL": 0.6, "USDC": 0.4 } } },
+    { "input": "close my BONK position", "action": "swap", "params": { "in": "BONK", "out": "USDC", "amount": "all" } },
+    { "input": "buy SOL with leverage 2x", "action": "perp_open", "params": { "asset": "SOL", "side": "long", "leverage": 2 } }
+  ]
+}
