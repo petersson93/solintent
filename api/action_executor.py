@@ -38,10 +38,24 @@ EXECUTION_SEED = b"execution"
 
 
 def load_keypair(path: str) -> Keypair:
+    """Resolve the signing keypair, env-first then filesystem.
+
+    On Railway there is no `~/.config/solana/id.json`, so we look for
+    CRANK_KEYPAIR_JSON (an inline 64-byte JSON array, with or without
+    surrounding brackets) before falling back to disk.
+    """
+    inline = (os.getenv("CRANK_KEYPAIR_JSON") or "").strip()
+    if inline:
+        body = inline.lstrip("[(").rstrip(")]")
+        try:
+            secret = json.loads(inline) if inline.startswith("[") else json.loads(f"[{body}]")
+        except json.JSONDecodeError:
+            secret = [int(b) for b in body.split(",") if b.strip()]
+        return Keypair.from_bytes(bytes(secret[:64]))
     expanded = Path(path).expanduser()
     with open(expanded) as f:
         secret = json.load(f)
-    return Keypair.from_bytes(bytes(secret))
+    return Keypair.from_bytes(bytes(secret[:64]))
 
 
 def derive_config_pda(program_id: Pubkey) -> tuple[Pubkey, int]:
