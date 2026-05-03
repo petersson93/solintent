@@ -1,3 +1,6 @@
+import { Buffer } from 'buffer';
+(globalThis as any).Buffer = (globalThis as any).Buffer || Buffer;
+
 import { StrictMode, useMemo } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
