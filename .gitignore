@@ -14,8 +14,3 @@ __pycache__/
 dist-types/
 *.d.ts
 !src/**/*.d.ts
-deploy-keypair.json
-
-# vercel cli project link
-.vercel/
-**/.vercel/
