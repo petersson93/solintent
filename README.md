@@ -37,6 +37,23 @@ A confidence score is attached to every parsed plan. Below `0.85` the app refuse
 
 Supported intents include swap, stake/unstake, transfer, LP add/remove, and "wallet snapshot" — more shipping behind a feature flag.
 
+## Builder Mode
+
+Drag blocks from the action palette onto the canvas. Wire outputs into inputs. The builder enforces type compatibility — you can't pipe an `Amount<SOL>` into a slot that expects `Amount<USDC>` without inserting a swap block in between.
+
+Keyboard:
+
+- `Cmd+K` — open the action palette
+- `Backspace` — delete selected node
+- `Cmd+D` — duplicate node
+- `Cmd+S` — save flow as a reusable template
+- `Cmd+Enter` — preview flow against your wallet
+- `Cmd+Shift+Enter` — preview + sign + execute
+
+Saved flows appear in the left panel and can be re-run with one click. Useful for routine moves like "every Friday rebalance into 60/40".
+
+## Stack
+
 - Anchor (Rust) + Vite/React + ReactFlow
 - Python/FastAPI + Claude API
 - Jupiter SDK for swaps
