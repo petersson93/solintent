@@ -66,6 +66,29 @@ cd api && pip install -r requirements.txt && uvicorn main:app
 cd app && npm install && npm run dev
 ```
 
+## Example Intents
+
+A few prompts that already parse cleanly to a single signable plan:
+
+```
+swap 1 SOL to USDC
+swap 0.5 SOL to BONK with 1% slippage
+stake 2 SOL with marinade
+unstake all jitoSOL back to SOL
+transfer 100 USDC to <pubkey>
+add liquidity 1 SOL + 80 USDC to raydium SOL/USDC
+take a snapshot of my wallet
+```
+
+Multi-step prompts also work:
+
+```
+swap 1 SOL to USDC, then send 50 USDC to <pubkey>
+unstake mSOL, swap half to JUP, transfer the rest back to my wallet
+```
+
+(screenshots placeholder — drop captures into `docs/intents/` once the demo ledger is fresh)
+
 ## License
 
 MIT
