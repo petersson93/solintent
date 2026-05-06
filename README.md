@@ -21,7 +21,21 @@ Most DeFi tools force you to choose between the chat-style "tell me what you wan
 
 Type `"swap 1 SOL to USDC"` → see preview → sign → done.
 
-## Stack
+## Chat Mode
+
+Type what you want in plain English; the NLP layer (Claude Haiku) parses it into a typed action plan, drops it onto the canvas as one or more wired blocks, and shows you a preview before any signature.
+
+```
+> swap 0.5 SOL to USDC, then stake the rest with marinade
+
+[swap] 0.5 SOL → USDC via Jupiter (slippage 0.5%)
+   ↓
+[stake] remainder → marinade (mSOL receipt)
+```
+
+A confidence score is attached to every parsed plan. Below `0.85` the app refuses to auto-execute and asks you to confirm or rewrite. Above `0.85` it streams the preview straight into the builder.
+
+Supported intents include swap, stake/unstake, transfer, LP add/remove, and "wallet snapshot" — more shipping behind a feature flag.
 
 - Anchor (Rust) + Vite/React + ReactFlow
 - Python/FastAPI + Claude API
