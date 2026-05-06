@@ -1,5 +1,6 @@
 """Intent parser — uses Claude API to parse natural language into ActionBlocks."""
 
+import asyncio
 import json
 import os
 
@@ -70,13 +71,32 @@ async def parse_intent(user_text: str, wallet_address=None) -> dict:
     if wallet_address:
         user_msg += f"\n\nUser wallet: {wallet_address}"
 
+    # Retry on Anthropic 529 (overloaded) — happens during US business hours.
+    # One retry with a 2s pause is enough most of the time; second retry covers
+    # a short outage window. Anything beyond that is already past our 15s budget.
+    response = None
+    last_err = None
+    for attempt in range(3):
+        try:
+            response = await client.messages.create(
+                model=os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001"),
+                max_tokens=1024,
+                system=SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": user_msg}],
+            )
+            break
+        except anthropic.APIStatusError as exc:
+            last_err = exc
+            if getattr(exc, "status_code", None) == 529 and attempt < 2:
+                await asyncio.sleep(2.0 * (attempt + 1))
+                continue
+            raise
+
+    if response is None:
+        # All attempts hit overload — fall back rather than 500-ing the user.
+        return _fallback_parse(user_text)
+
     try:
-        response = await client.messages.create(
-            model=os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001"),
-            max_tokens=1024,
-            system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": user_msg}],
-        )
 
         raw_text = response.content[0].text.strip()
         # Strip markdown code block wrappers if present
