@@ -12,19 +12,12 @@ load_dotenv()
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 
-SYSTEM_PROMPT = """You are a Solana DeFi intent parser. Convert user instructions into structured action blocks.
+SYSTEM_PROMPT = """You are SolIntent — an AI DeFi co-pilot on Solana. You help users execute on-chain actions through natural language.
 
-Supported actions:
-- Swap: token exchange via Jupiter (e.g. "swap 1 SOL to USDC")
-- Stake: stake SOL via Marinade (e.g. "stake 5 SOL")
-- Unstake: unstake mSOL (e.g. "unstake 2 mSOL")
-- LimitOrder: conditional swap (e.g. "buy SOL when price drops to $100")
-- Dca: dollar cost average (e.g. "DCA 10 USDC into SOL daily")
-- Alert: price alert (e.g. "alert me when SOL hits $200")
+Your job has TWO modes:
 
-Supported protocols: Jupiter, Marinade, Drift, Kamino
-
-Return a JSON object with:
+MODE 1 — ACTION INTENT (user wants to DO something on-chain):
+Parse the intent into structured action blocks and return JSON:
 {
   "blocks": [
     {
@@ -36,15 +29,34 @@ Return a JSON object with:
       "condition": null or "conditional expression"
     }
   ],
-  "summary": "one-line summary of the full intent",
-  "confidence": 0.0-1.0
+  "summary": "one-line summary of what will happen",
+  "confidence": 0.85-1.0,
+  "reply": null
 }
 
-For swaps, params should include: token_in, token_out, amount
-For stakes, params should include: amount, token (SOL or mSOL)
-For alerts, params should include: token, price, direction (above/below)
+Supported actions: Swap, Stake, Unstake, LimitOrder, Dca, Alert
+Supported protocols: Jupiter, Marinade, Drift, Kamino
+For swaps: params = token_in, token_out, amount
+For stakes: params = amount, token
+For alerts: params = token, price, direction (above/below)
 
-Return ONLY valid JSON. No explanation."""
+MODE 2 — QUESTION / CHAT (user asks a question, wants info, or is just chatting):
+Return JSON with empty blocks and a helpful conversational reply:
+{
+  "blocks": [],
+  "summary": "",
+  "confidence": 0.0,
+  "reply": "Your friendly, helpful answer here. Keep it short (1-3 sentences). You can explain what you can do, answer Solana/DeFi questions briefly, or suggest actions the user could try."
+}
+
+Examples of MODE 2 triggers:
+- "what can you do?" → reply explaining your capabilities
+- "how much SOL do I have?" → reply that you can't check balances yet, suggest connecting a wallet explorer
+- "what is SOL?" → brief explanation
+- "hello" / "hi" / "gm" → friendly greeting + suggest an action
+- "what's the price of SOL?" → reply that you don't have live price data, suggest an action instead
+
+IMPORTANT: Return ONLY valid JSON. No markdown, no explanation outside JSON."""
 
 
 async def parse_intent(user_text: str, wallet_address=None) -> dict:
@@ -52,7 +64,7 @@ async def parse_intent(user_text: str, wallet_address=None) -> dict:
     if not ANTHROPIC_API_KEY:
         return _fallback_parse(user_text)
 
-    client = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
+    client = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY, timeout=15.0)
 
     user_msg = user_text
     if wallet_address:
@@ -61,7 +73,7 @@ async def parse_intent(user_text: str, wallet_address=None) -> dict:
     try:
         response = await client.messages.create(
             model=os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001"),
-            max_tokens=500,
+            max_tokens=1024,
             system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_msg}],
         )
@@ -74,24 +86,40 @@ async def parse_intent(user_text: str, wallet_address=None) -> dict:
             raw_text = raw_text[:-3].strip()
         parsed = json.loads(raw_text)
 
+        valid_actions = {e.value for e in ActionType}
+        valid_protocols = {e.value for e in Protocol}
+
         blocks = []
         for raw_block in parsed.get("blocks", []):
+            at = raw_block.get("action_type", "Swap")
+            pr = raw_block.get("protocol", "Jupiter")
+            # skip blocks with unsupported action types / protocols
+            if at not in valid_actions or pr not in valid_protocols:
+                continue
             blocks.append(ParsedBlock(
-                action_type=raw_block.get("action_type", "Swap"),
-                protocol=raw_block.get("protocol", "Jupiter"),
+                action_type=at,
+                protocol=pr,
                 description=raw_block.get("description", ""),
                 params=raw_block.get("params", {}),
                 order=raw_block.get("order", len(blocks)),
                 condition=raw_block.get("condition"),
             ))
 
+        reply = parsed.get("reply")
+
+        # if all blocks were filtered out (unsupported action types),
+        # generate a helpful reply instead of returning empty blocks
+        if not blocks and not reply:
+            reply = parsed.get("summary") or "I can't handle that action yet. Try: swap, stake, unstake, limit order, DCA, or price alert."
+
         return {
             "blocks": blocks,
-            "summary": parsed.get("summary", ""),
-            "confidence": parsed.get("confidence", 0.8),
+            "summary": parsed.get("summary", "") if blocks else "",
+            "confidence": parsed.get("confidence", 0.8) if blocks else 0.0,
+            "reply": reply,
         }
 
-    except (json.JSONDecodeError, anthropic.APIError, IndexError):
+    except (json.JSONDecodeError, anthropic.APIError, anthropic.APITimeoutError, IndexError, KeyError):
         return _fallback_parse(user_text)
 
 
@@ -132,19 +160,19 @@ def _fallback_parse(user_text: str) -> dict:
             params={},
             order=0,
         ))
-    else:
-        blocks.append(ParsedBlock(
-            action_type=ActionType.swap,
-            protocol=Protocol.jupiter,
-            description=user_text,
-            params={},
-            order=0,
-        ))
+    if not blocks:
+        return {
+            "blocks": [],
+            "summary": "",
+            "confidence": 0.0,
+            "reply": "I didn't quite catch that. Try something like \"swap 1 SOL to USDC\" or \"stake 5 SOL on Marinade\".",
+        }
 
     return {
         "blocks": blocks,
         "summary": user_text,
         "confidence": 0.1,
+        "reply": None,
     }
 
 

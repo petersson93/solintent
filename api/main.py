@@ -1,7 +1,10 @@
 """SolIntent API — NLP intent parsing, agent creation, and execution."""
 
 import os
-from fastapi import FastAPI, HTTPException, Header
+import re
+import time
+from collections import defaultdict
+from fastapi import FastAPI, HTTPException, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from solders.pubkey import Pubkey
 
@@ -9,15 +12,36 @@ from models import ParseIntentRequest, ParseIntentResponse, ExecuteRequest
 from intent_parser import parse_intent
 from action_executor import build_create_agent_tx, build_execute_intent_tx, crank_execute_blocks
 
+
+def sanitize_text(text: str) -> str:
+    """Strip HTML/script tags from user input to prevent XSS in stored responses."""
+    return re.sub(r"<[^>]+>", "", text).strip()
+
+
+# Simple in-memory rate limiter: max 20 requests per minute per IP
+_rate_store: dict[str, list[float]] = defaultdict(list)
+RATE_LIMIT = 20
+RATE_WINDOW = 60
+
+
+def check_rate_limit(ip: str) -> None:
+    now = time.time()
+    _rate_store[ip] = [t for t in _rate_store[ip] if now - t < RATE_WINDOW]
+    if len(_rate_store[ip]) >= RATE_LIMIT:
+        raise HTTPException(status_code=429, detail="Rate limit exceeded. Try again later.")
+    _rate_store[ip].append(now)
+
 CRANK_SECRET = os.getenv("CRANK_SECRET", "")
 
 app = FastAPI(title="SolIntent API", version="0.1.0")
 
+ALLOWED_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:5180,http://localhost:3000").split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type", "Authorization", "x-crank-secret"],
 )
 
 
@@ -27,18 +51,33 @@ def health():
 
 
 @app.post("/api/parse-intent", response_model=ParseIntentResponse)
-async def handle_parse_intent(req: ParseIntentRequest):
+async def handle_parse_intent(req: ParseIntentRequest, request: Request):
     """Parse natural language intent into structured ActionBlocks."""
-    if not req.text.strip():
+    check_rate_limit(request.client.host if request.client else "unknown")
+    clean_text = sanitize_text(req.text)
+    if not clean_text:
         raise HTTPException(status_code=400, detail="Empty intent text")
 
-    result = await parse_intent(req.text, req.wallet)
+    if len(clean_text) > 500:
+        clean_text = clean_text[:500]
+
+    # validate wallet if provided
+    clean_wallet = None
+    if req.wallet:
+        try:
+            Pubkey.from_string(req.wallet)
+            clean_wallet = req.wallet
+        except Exception:
+            clean_wallet = None
+
+    result = await parse_intent(clean_text, clean_wallet)
 
     return ParseIntentResponse(
-        intent=req.text,
+        intent=clean_text,
         blocks=result["blocks"],
         summary=result["summary"],
         confidence=result["confidence"],
+        reply=result.get("reply"),
     )
 
 

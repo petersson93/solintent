@@ -150,7 +150,7 @@ async def build_create_agent_tx(
     program_id = Pubkey.from_string(PROGRAM_ID)
     user_pk = Pubkey.from_string(wallet_pubkey)
 
-    agent_id = int(time.time() * 1000) + random.randint(0, 999)
+    agent_id = int(time.time() * 1000_000) + random.randint(0, 999_999)
     agent_pda, _ = derive_agent_pda(user_pk, agent_id, program_id)
 
     ix_data = encode_create_agent_data(agent_id, agent_name, "Chat", blocks)
@@ -179,7 +179,7 @@ async def build_execute_intent_tx(
     agent_pda, _ = derive_agent_pda(user_pk, agent_id, program_id)
     config_pda, _ = derive_config_pda(program_id)
 
-    exec_id = int(time.time() * 1000) + random.randint(0, 999)
+    exec_id = int(time.time() * 1000_000) + random.randint(0, 999_999)
     execution_pda, _ = derive_execution_pda(agent_pda, exec_id, program_id)
 
     ix_data = encode_execute_intent_data(exec_id)
