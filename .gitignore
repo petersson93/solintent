@@ -14,3 +14,4 @@ __pycache__/
 dist-types/
 *.d.ts
 !src/**/*.d.ts
+deploy-keypair.json
