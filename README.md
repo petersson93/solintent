@@ -4,6 +4,8 @@
 
 **Live preview (devnet):** https://solintent.vercel.app
 
+**Anchor program (devnet):** `AHvsBUGTcXewYD3hyE2F2HunXGszJRJ3k1BCAFwoqCk1`
+
 ## Why SolIntent?
 
 | Feature                     | SolIntent | CLI Tools | Other Bots |
