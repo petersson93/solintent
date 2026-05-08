@@ -52,7 +52,7 @@ Keyboard:
 
 Saved flows appear in the left panel and can be re-run with one click. Useful for routine moves like "every Friday rebalance into 60/40".
 
-## Stack
+## Module map
 
 - Anchor (Rust) + Vite/React + ReactFlow
 - Python/FastAPI + Claude API
