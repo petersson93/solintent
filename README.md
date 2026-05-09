@@ -4,8 +4,6 @@
 
 **Live preview (devnet):** https://solintent.vercel.app
 
-**Anchor program (devnet):** `AHvsBUGTcXewYD3hyE2F2HunXGszJRJ3k1BCAFwoqCk1`
-
 ## Why SolIntent?
 
 | Feature                     | SolIntent | CLI Tools | Other Bots |
@@ -54,7 +52,7 @@ Keyboard:
 
 Saved flows appear in the left panel and can be re-run with one click. Useful for routine moves like "every Friday rebalance into 60/40".
 
-## Module map
+## Stack
 
 - Anchor (Rust) + Vite/React + ReactFlow
 - Python/FastAPI + Claude API
@@ -93,10 +91,4 @@ unstake mSOL, swap half to JUP, transfer the rest back to my wallet
 
 ## License
 
-| Layer                    | License | File                   |
-|--------------------------|---------|------------------------|
-| Anchor program (`programs/`) | MIT | [LICENSE](LICENSE) |
-| FastAPI / NLP layer (`api/`) | MIT | [LICENSE](LICENSE) |
-| Frontend + builder (`app/`)  | MIT | [LICENSE](LICENSE) |
-
-Single MIT grant covers every module in this repo — parsed intents, generated plans, and any saved flow templates inherit the same terms.
+MIT
